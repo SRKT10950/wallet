@@ -1,5 +1,6 @@
 import { openDB, IDBPDatabase } from 'idb';
 import { SyncItem } from '../types';
+import { generateUUID } from '../utils/uuid';
 
 const DB_NAME = 'my_wallet_offline_db';
 const STORE_NAME = 'sync_queue';
@@ -18,7 +19,7 @@ export class OfflineQueue {
   public static async enqueue(type: 'INVOICE' | 'EXPENSE' | 'PAYMENT', payload: any): Promise<SyncItem> {
     const db = await getDB();
     const item: SyncItem = {
-      id: `sync_${crypto.randomUUID().slice(0, 8)}`,
+      id: `sync_${generateUUID().slice(0, 8)}`,
       type,
       payload,
       status: 'PENDING_SYNC',

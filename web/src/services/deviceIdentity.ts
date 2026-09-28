@@ -1,4 +1,5 @@
 import { DeviceCredentials } from '../types';
+import { generateUUID } from '../utils/uuid';
 
 const STORAGE_KEY = 'my_wallet_device_creds';
 
@@ -46,7 +47,7 @@ export function clearDeviceCredentials(): void {
 export function getOrCreateInstallationId(): string {
   let installId = localStorage.getItem('my_wallet_installation_id');
   if (!installId) {
-    installId = `pwa_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+    installId = `pwa_${generateUUID().replace(/-/g, '').slice(0, 16)}`;
     localStorage.setItem('my_wallet_installation_id', installId);
   }
   return installId;
