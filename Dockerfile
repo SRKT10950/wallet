@@ -1,9 +1,7 @@
-# Multi-stage build for My Wallet Backend
-FROM node:20-alpine AS builder
+# Stage 1: Build TypeScript
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
-
-RUN apk add --no-cache python3 make g++
 
 COPY backend/package*.json ./
 RUN npm ci
@@ -13,7 +11,8 @@ COPY backend/src/ ./src/
 
 RUN npm run build
 
-FROM node:20-alpine AS production
+# Stage 2: Production
+FROM node:20-bookworm-slim AS production
 
 WORKDIR /app
 ENV NODE_ENV=production

@@ -1,7 +1,6 @@
 services:
   my-wallet-db:
     image: postgres:16-alpine
-    container_name: my-wallet-db
     restart: always
     environment:
       POSTGRES_DB: ${DATABASE_NAME:-wallet}
@@ -9,7 +8,6 @@ services:
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-wallet_secure_db_pass_2026}
     volumes:
       - postgres_wallet_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-wallet_app} -d ${DATABASE_NAME:-wallet}"]
       interval: 10s
@@ -20,7 +18,6 @@ services:
 
   my-wallet-redis:
     image: redis:7-alpine
-    container_name: my-wallet-redis
     restart: always
     command: redis-server --appendonly yes
     volumes:
@@ -38,7 +35,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       target: production
-    container_name: my-wallet-api
     restart: always
     depends_on:
       my-wallet-db:
@@ -59,7 +55,7 @@ services:
       TRUSTED_PROXY_IPS: 127.0.0.1,172.16.0.0/12,my-wallet-nginx,traefik
       CORS_ALLOWED_ORIGINS: https://wallet.mhservice.co.in,http://localhost:5173
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -70,7 +66,6 @@ services:
     build:
       context: .
       dockerfile: docker/nginx/Dockerfile
-    container_name: my-wallet-nginx
     restart: always
     depends_on:
       my-wallet-api:
@@ -80,13 +75,6 @@ services:
     environment:
       - VIRTUAL_HOST=wallet.mhservice.co.in
       - LETSENCRYPT_HOST=wallet.mhservice.co.in
-    labels:
-      - "coolify.managed=true"
-      - "traefik.enable=true"
-      - "traefik.http.routers.mywallet.rule=Host(`wallet.mhservice.co.in`)"
-      - "traefik.http.routers.mywallet.entrypoints=https"
-      - "traefik.http.routers.mywallet.tls.certresolver=letsencrypt"
-      - "traefik.http.services.mywallet.loadbalancer.server.port=80"
     networks:
       - wallet-internal
 

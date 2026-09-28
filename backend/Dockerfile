@@ -1,9 +1,7 @@
 # Stage 1: Build TypeScript
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
-
-RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
 RUN npm ci
@@ -14,7 +12,7 @@ COPY src/ ./src/
 RUN npm run build
 
 # Stage 2: Development
-FROM node:20-alpine AS development
+FROM node:20-bookworm-slim AS development
 
 WORKDIR /app
 COPY package*.json ./
@@ -24,7 +22,7 @@ EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
 # Stage 3: Production
-FROM node:20-alpine AS production
+FROM node:20-bookworm-slim AS production
 
 WORKDIR /app
 ENV NODE_ENV=production

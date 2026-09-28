@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+.git
+.github
+.vscode
+.idea
+mobile
+dist
+build
+coverage
+*.log

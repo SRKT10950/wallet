@@ -1,5 +1,5 @@
 # Multi-stage build: Builds PWA & packages Nginx Reverse Proxy
-FROM node:20-alpine AS web-builder
+FROM node:20-bookworm-slim AS web-builder
 
 WORKDIR /app
 
