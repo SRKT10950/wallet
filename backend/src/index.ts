@@ -64,13 +64,27 @@ app.use(requestTraceMiddleware as any);
 // 3. Health & Liveness Probe
 app.get('/health', async (req, res) => {
   const dbConnected = await testConnection();
-  const status = dbConnected ? 'healthy' : 'unhealthy';
+  let tablesCount = 0;
+  if (dbConnected) {
+    try {
+      const { db } = await import('./database/index.js');
+      const resTables = await db('information_schema.tables')
+        .where('table_schema', 'public')
+        .count('table_name as count')
+        .first();
+      tablesCount = Number(resTables?.count || 0);
+    } catch {
+      tablesCount = 0;
+    }
+  }
+  const status = dbConnected && tablesCount > 0 ? 'healthy' : (dbConnected ? 'migrating' : 'unhealthy');
   res.status(dbConnected ? 200 : 503).json({
     status,
     timestamp: new Date().toISOString(),
     service: config.APP_NAME,
     version: config.APP_VERSION,
     database: dbConnected ? 'connected' : 'disconnected',
+    tables: tablesCount,
   });
 });
 

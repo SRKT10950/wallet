@@ -21,7 +21,6 @@ COPY backend/package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/src/database/migrations ./dist/database/migrations
 
 EXPOSE 3000
 
