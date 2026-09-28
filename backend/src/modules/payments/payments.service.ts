@@ -17,7 +17,11 @@ export interface RecordPaymentInput {
 export class PaymentsService {
   public static async recordPayment(req: AppRequest, input: RecordPaymentInput) {
     const businessId = req.user!.businessId;
-    const locationId = input.locationId || req.locationId || req.user?.defaultLocationId;
+    let locationId = input.locationId || req.locationId || req.user?.defaultLocationId;
+    if (!locationId) {
+      const defaultLoc = await db('locations').where({ business_id: businessId }).first();
+      locationId = defaultLoc?.id;
+    }
     const paymentAmount = roundMoney(input.amount);
 
     if (paymentAmount <= 0) {
@@ -38,7 +42,7 @@ export class PaymentsService {
           throw { status: 404, code: 'INVOICE_NOT_FOUND', message: 'Invoice not found.' };
         }
 
-        if (invoice.is_cancelled) {
+        if (invoice.payment_status === 'CANCELLED') {
           throw { status: 400, code: 'INVOICE_CANCELLED', message: 'Cannot record payment for a cancelled invoice.' };
         }
 

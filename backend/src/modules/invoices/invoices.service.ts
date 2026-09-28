@@ -63,9 +63,13 @@ export class InvoicesService {
     }
 
     const businessId = req.user!.businessId;
-    const locationId = input.locationId || req.locationId || req.user?.defaultLocationId;
+    let locationId = input.locationId || req.locationId || req.user?.defaultLocationId;
     if (!locationId) {
-      throw { status: 400, code: 'LOCATION_REQUIRED', message: 'Location ID is required.' };
+      const defaultLoc = await db('locations').where({ business_id: businessId }).first();
+      locationId = defaultLoc?.id;
+    }
+    if (!locationId) {
+      throw { status: 400, code: 'LOCATION_REQUIRED', message: 'No active branch/location found for business.' };
     }
 
     const business = await db('businesses').where({ id: businessId }).first();
@@ -105,7 +109,7 @@ export class InvoicesService {
         subtotal: calc.subtotal,
         discount_amount: calc.discountAmount,
         tax_amount: calc.taxAmount,
-        grandTotal: calc.grandTotal,
+        grand_total: calc.grandTotal,
         amount_paid: initialPaid,
         balance_due: calc.balanceDue,
         currency: business?.currency || 'USD',
@@ -294,7 +298,7 @@ export class InvoicesService {
    */
   public static async cancel(req: AppRequest, id: string, reason?: string) {
     const invoice = await this.getById(req.user!.businessId, id);
-    if (invoice.is_cancelled) {
+    if (invoice.payment_status === 'CANCELLED') {
       throw { status: 400, code: 'ALREADY_CANCELLED', message: 'Invoice is already cancelled.' };
     }
 
@@ -302,7 +306,6 @@ export class InvoicesService {
       await trx('invoices')
         .where({ id })
         .update({
-          is_cancelled: true,
           payment_status: 'CANCELLED',
           cancelled_at: new Date(),
           cancelled_by_user_id: req.user!.id,

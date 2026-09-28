@@ -17,7 +17,11 @@ export interface CreateExpenseInput {
 export class ExpensesService {
   public static async create(req: AppRequest, input: CreateExpenseInput) {
     const businessId = req.user!.businessId;
-    const locationId = input.locationId || req.locationId || req.user?.defaultLocationId;
+    let locationId = input.locationId || req.locationId || req.user?.defaultLocationId;
+    if (!locationId) {
+      const defaultLoc = await db('locations').where({ business_id: businessId }).first();
+      locationId = defaultLoc?.id;
+    }
     const amount = roundMoney(input.amount);
 
     if (amount <= 0) {

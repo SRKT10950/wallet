@@ -95,16 +95,24 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({
     setSubmitting(true);
     try {
       await api.createInvoice({
-        customerId: selectedCustomerId || undefined,
-        items,
-        initialAmountPaid: Number(initialPaid),
-        paymentMethod,
+        customerId: selectedCustomerId && selectedCustomerId.trim() ? selectedCustomerId.trim() : undefined,
+        items: items.map((i) => ({
+          productId: i.productId && i.productId.trim() ? i.productId.trim() : undefined,
+          itemName: i.itemName?.trim() || 'Item',
+          quantity: Number(i.quantity) || 1,
+          unitPrice: Number(i.unitPrice) || 0,
+          discountRate: Number(i.discountRate) || 0,
+          taxRate: Number(i.taxRate) || 0,
+        })),
+        initialAmountPaid: Number(initialPaid) || 0,
+        paymentMethod: paymentMethod || 'CASH',
       });
       onCloseCreateModal();
       fetchInvoices();
       // Reset form
       setItems([{ itemName: 'Retail Item', quantity: 1, unitPrice: 10, discountRate: 0, taxRate: 5 }]);
       setInitialPaid(0);
+      setSelectedCustomerId('');
     } catch (err: any) {
       alert(err.message || 'Failed to create invoice');
     } finally {

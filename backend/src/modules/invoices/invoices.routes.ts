@@ -8,11 +8,13 @@ import { requirePermission } from '../../middlewares/rbacGuard.js';
 
 const router = Router();
 
+const emptyToUndefined = (v: any) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+
 const createInvoiceSchema = z.object({
-  customerId: z.string().uuid().optional(),
-  locationId: z.string().uuid().optional(),
+  customerId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
+  locationId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
   invoiceDate: z.string().optional(),
-  dueDate: z.string().optional(),
+  dueDate: z.preprocess(emptyToUndefined, z.string().optional()),
   overallDiscountAmount: z.coerce.number().min(0).optional().default(0),
   initialAmountPaid: z.coerce.number().min(0).optional().default(0),
   paymentMethod: z.string().optional().default('CASH'),
@@ -20,7 +22,7 @@ const createInvoiceSchema = z.object({
   terms: z.string().optional(),
   items: z.array(
     z.object({
-      productId: z.string().uuid().optional(),
+      productId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
       itemName: z.string().min(1, 'Item name is required'),
       quantity: z.coerce.number().positive('Quantity must be greater than zero'),
       unitPrice: z.coerce.number().min(0, 'Unit price must be non-negative'),
