@@ -1,8 +1,9 @@
 import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
-  // Ensure UUID extension
+  // Ensure UUID and pgcrypto extensions
   await knex.raw('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";');
+  await knex.raw('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
 
   // 1. Businesses
   await knex.schema.createTable('businesses', (table) => {
