@@ -1,0 +1,99 @@
+services:
+  my-wallet-db:
+    image: postgres:16-alpine
+    container_name: my-wallet-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-wallet}
+      POSTGRES_USER: ${DATABASE_USER:-wallet_app}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-wallet_secure_db_pass_2026}
+    volumes:
+      - postgres_wallet_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-wallet_app} -d ${DATABASE_NAME:-wallet}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wallet-internal
+
+  my-wallet-redis:
+    image: redis:7-alpine
+    container_name: my-wallet-redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_wallet_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wallet-internal
+
+  my-wallet-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: my-wallet-api
+    restart: always
+    depends_on:
+      my-wallet-db:
+        condition: service_healthy
+      my-wallet-redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_HOST: my-wallet-db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DATABASE_NAME:-wallet}
+      DATABASE_USER: ${DATABASE_USER:-wallet_app}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-wallet_secure_db_pass_2026}
+      REDIS_URL: redis://my-wallet-redis:6379
+      JWT_SECRET: ${JWT_SECRET:-wallet_super_secure_jwt_secret_key_2026_at_least_32_chars}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-wallet_super_secure_refresh_secret_key_2026_at_least_32_chars}
+      TRUSTED_PROXY_IPS: 127.0.0.1,172.16.0.0/12,my-wallet-nginx,traefik
+      CORS_ALLOWED_ORIGINS: https://wallet.mhservice.co.in,http://localhost:5173
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - wallet-internal
+
+  my-wallet-nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    container_name: my-wallet-nginx
+    restart: always
+    depends_on:
+      my-wallet-api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    environment:
+      - VIRTUAL_HOST=wallet.mhservice.co.in
+      - LETSENCRYPT_HOST=wallet.mhservice.co.in
+    labels:
+      - "coolify.managed=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.mywallet.rule=Host(`wallet.mhservice.co.in`)"
+      - "traefik.http.routers.mywallet.entrypoints=https"
+      - "traefik.http.routers.mywallet.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mywallet.loadbalancer.server.port=80"
+    networks:
+      - wallet-internal
+
+volumes:
+  postgres_wallet_data:
+  redis_wallet_data:
+
+networks:
+  wallet-internal:
+    driver: bridge

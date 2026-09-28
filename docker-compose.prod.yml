@@ -1,0 +1,94 @@
+services:
+  my-wallet-db:
+    image: postgres:16-alpine
+    container_name: my-wallet-db-prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # Note: Do not expose port 5432 to host in production
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER} -d ${DATABASE_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wallet-internal-net
+
+  my-wallet-redis:
+    image: redis:7-alpine
+    container_name: my-wallet-redis-prod
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_prod_data:/data
+    # Note: Do not expose port 6379 to host in production
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wallet-internal-net
+
+  my-wallet-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: my-wallet-api-prod
+    restart: always
+    depends_on:
+      my-wallet-db:
+        condition: service_healthy
+      my-wallet-redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_HOST: my-wallet-db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DATABASE_NAME}
+      DATABASE_USER: ${DATABASE_USER}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@my-wallet-redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      TRUSTED_PROXY_IPS: 127.0.0.1,172.16.0.0/12,my-wallet-nginx
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - wallet-internal-net
+
+  my-wallet-nginx:
+    image: nginx:alpine
+    container_name: my-wallet-nginx-prod
+    restart: always
+    depends_on:
+      my-wallet-api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro
+      - ./web/dist:/usr/share/nginx/html:ro
+    networks:
+      - wallet-internal-net
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+
+networks:
+  wallet-internal-net:
+    driver: bridge

@@ -1,0 +1,94 @@
+services:
+  my-wallet-db:
+    image: postgres:16-alpine
+    container_name: my-wallet-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-wallet}
+      POSTGRES_USER: ${DATABASE_USER:-wallet_app}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-wallet_secret_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-wallet_app} -d ${DATABASE_NAME:-wallet}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wallet-network
+
+  my-wallet-redis:
+    image: redis:7-alpine
+    container_name: my-wallet-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wallet-network
+
+  my-wallet-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: my-wallet-api
+    restart: unless-stopped
+    depends_on:
+      my-wallet-db:
+        condition: service_healthy
+      my-wallet-redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_HOST: my-wallet-db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DATABASE_NAME:-wallet}
+      DATABASE_USER: ${DATABASE_USER:-wallet_app}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-wallet_secret_password}
+      REDIS_URL: redis://my-wallet-redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_must_be_changed_in_prod_123456}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_must_be_changed_123456}
+      TRUSTED_PROXY_IPS: 127.0.0.1,172.16.0.0/12,my-wallet-nginx
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    networks:
+      - wallet-network
+
+  my-wallet-nginx:
+    image: nginx:alpine
+    container_name: my-wallet-nginx
+    restart: unless-stopped
+    depends_on:
+      - my-wallet-api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro
+    networks:
+      - wallet-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  wallet-network:
+    driver: bridge
