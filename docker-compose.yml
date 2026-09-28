@@ -52,8 +52,8 @@ services:
       REDIS_URL: redis://my-wallet-redis:6379
       JWT_SECRET: ${JWT_SECRET:-wallet_super_secure_jwt_secret_key_2026_at_least_32_chars}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-wallet_super_secure_refresh_secret_key_2026_at_least_32_chars}
-      TRUSTED_PROXY_IPS: 127.0.0.1,172.16.0.0/12,my-wallet-nginx,traefik
-      CORS_ALLOWED_ORIGINS: https://wallet.mhservice.co.in,http://localhost:5173
+      TRUSTED_PROXY_IPS: 127.0.0.1,172.16.0.0/12,192.168.0.0/16,my-wallet-nginx,traefik
+      CORS_ALLOWED_ORIGINS: https://wallet.mhservice.co.in,http://wallet.mhservice.co.in,http://192.168.50.109:8090,http://192.168.50.109,http://localhost:5173
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
       interval: 15s
@@ -72,11 +72,20 @@ services:
         condition: service_healthy
     expose:
       - "80"
+    ports:
+      - "8090:80"
     environment:
       - VIRTUAL_HOST=wallet.mhservice.co.in
       - LETSENCRYPT_HOST=wallet.mhservice.co.in
+    labels:
+      - "coolify.managed=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.wallet-nginx.rule=Host(`wallet.mhservice.co.in`)"
+      - "traefik.http.routers.wallet-nginx.entrypoints=http,https"
+      - "traefik.http.services.wallet-nginx.loadbalancer.server.port=80"
     networks:
       - wallet-internal
+      - coolify
 
 volumes:
   postgres_wallet_data:
@@ -85,3 +94,5 @@ volumes:
 networks:
   wallet-internal:
     driver: bridge
+  coolify:
+    external: true
